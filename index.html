@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#141519">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Задачи — D-Launcher</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #141519; color: #e8e9ee;
+    font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center;
+    gap: 8px; padding: 0 10px; background: #1f2129; border-bottom: 1px solid #2c2f3a; z-index: 20; }
+  #bar .sp { flex: 1; }
+  button { background: #262934; color: #e8e9ee; border: 1px solid #3a3f4d; border-radius: 8px;
+    padding: 8px 12px; font-size: 14px; }
+  button:active { background: #3a3f4d; }
+  select { background: #262934; color: #e8e9ee; border: 1px solid #3a3f4d; border-radius: 8px; padding: 8px; font-size: 14px; }
+  #stage { position: fixed; inset: 52px 0 0 0; overflow: hidden; touch-action: none; }
+  #world { position: absolute; left: 0; top: 0; width: 12000px; height: 12000px; transform-origin: 0 0;
+    background-image: radial-gradient(#24262d 1px, transparent 1px); background-size: 24px 24px; }
+  #edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+  #edges path { pointer-events: stroke; }
+  .block { position: absolute; width: 200px; height: 120px; border-radius: 14px; padding: 12px 14px;
+    user-select: none; overflow: hidden; touch-action: none; }
+  .block .t { font-weight: 700; font-size: 15px; color: #fff; line-height: 1.15; }
+  .block .x { font-size: 12px; color: #cbd5e1; margin-top: 6px; white-space: pre-wrap; }
+  .block.sel { outline: 2px dashed #4f7cf7; outline-offset: 3px; }
+  .anchor { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #fff;
+    border: 2px solid #4f7cf7; display: none; }
+  .block.sel .anchor, .block.hover .anchor { display: block; }
+  .a-top { left: calc(50% - 7px); top: -7px; }
+  .a-bottom { left: calc(50% - 7px); bottom: -7px; }
+  .a-left { top: calc(50% - 7px); left: -7px; }
+  .a-right { top: calc(50% - 7px); right: -7px; }
+  .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center;
+    justify-content: center; z-index: 30; }
+  .sheet.open { display: flex; }
+  .card { width: min(92vw, 420px); background: #1f2129; border: 1px solid #2c2f3a; border-radius: 14px; padding: 16px; }
+  .card h3 { margin: 0 0 12px; font-size: 17px; }
+  .card label { display: block; font-size: 13px; color: #9aa0ae; margin: 10px 0 4px; }
+  .card input, .card textarea { width: 100%; background: #262934; color: #e8e9ee; border: 1px solid #3a3f4d;
+    border-radius: 8px; padding: 10px; font-size: 15px; font-family: inherit; }
+  .card textarea { height: 90px; resize: vertical; }
+  .card .row { display: flex; gap: 8px; margin-top: 14px; }
+  .card .row button { flex: 1; }
+  .card .hint { font-size: 12px; color: #7f8799; margin-top: 6px; }
+  .primary { background: #2d8cff !important; border-color: #2d8cff !important; color: #fff !important; }
+  .danger { background: #b3261e !important; border-color: #b3261e !important; color: #fff !important; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #262934;
+    border: 1px solid #3a3f4d; padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0;
+    transition: opacity .2s; z-index: 40; pointer-events: none; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header id="bar">
+  <button id="btnAdd">＋ Блок</button>
+  <select id="styleSel">
+    <option value="solid">Сплошная</option>
+    <option value="dashed">Пунктир</option>
+    <option value="dotted">Точки</option>
+    <option value="dashdot">Штрих-пунктир</option>
+  </select>
+  <button id="btnDel">Удалить</button>
+  <span class="sp"></span>
+  <button id="btnOut">−</button>
+  <button id="btnIn">＋</button>
+  <button id="btnSync" title="Синхронизация">⟳</button>
+  <button id="btnSet" title="Настройки">⚙</button>
+</header>
+
+<div id="stage">
+  <div id="world">
+    <svg id="edges" width="12000" height="12000"></svg>
+    <div id="blocks"></div>
+  </div>
+</div>
+
+<!-- редактор блока -->
+<div class="sheet" id="blockSheet">
+  <div class="card">
+    <h3 id="bsTitle">Блок</h3>
+    <label>Заголовок</label>
+    <input id="bsName" type="text">
+    <label>Текст</label>
+    <textarea id="bsText"></textarea>
+    <label>Цвет</label>
+    <select id="bsColor">
+      <option value="#4f7cf7">Синий</option>
+      <option value="#f0616d">Красный</option>
+      <option value="#3fb950">Зелёный</option>
+      <option value="#e3b341">Жёлтый</option>
+      <option value="#a371f7">Фиолетовый</option>
+      <option value="#39c5cf">Бирюзовый</option>
+      <option value="#ff7b72">Оранжевый</option>
+      <option value="#8b949e">Серый</option>
+    </select>
+    <label>Форма</label>
+    <select id="bsShape">
+      <option value="round">Скруглённый</option>
+      <option value="rect">Прямоугольник</option>
+      <option value="ellipse">Овал</option>
+    </select>
+    <div class="row">
+      <button id="bsCancel">Отмена</button>
+      <button id="bsOk" class="primary">Готово</button>
+    </div>
+  </div>
+</div>
+
+<!-- настройки синхронизации -->
+<div class="sheet" id="setSheet">
+  <div class="card">
+    <h3>Синхронизация (GitHub Gist)</h3>
+    <label>Токен GitHub (scope: gist)</label>
+    <input id="setPat" type="password" placeholder="ghp_...">
+    <label>ID хранилища (Gist)</label>
+    <input id="setGist" type="text" placeholder="оставьте пустым и нажмите «Создать»">
+    <div class="row">
+      <button id="setCreate">Создать хранилище</button>
+      <button id="setPull">Скачать</button>
+      <button id="setPush" class="primary">Загрузить</button>
+    </div>
+    <div class="hint" id="setHint">Токен и ID хранятся только на этом телефоне.</div>
+    <div class="row">
+      <button id="setClose">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+const BW = 200, BH = 120;
+const SIDE_DIR = { top:[0,-1], right:[1,0], bottom:[0,1], left:[-1,0] };
+const DASH = { solid:"", dashed:"8 6", dotted:"1 6", dashdot:"10 5 2 5" };
+const LS_KEY = "dlauncher_tasks_v1";
+const LS_PAT = "dlauncher_pat";
+const LS_GIST = "dlauncher_gist";
+
+let state = { blocks: [], connections: [], updated: 0 };
+let view = { x: 0, y: 0, scale: 1 };
+let sel = null;            // id выделенного блока
+let drag = null;           // {type:'block'|'conn'|'pan', ...}
+
+const $ = id => document.getElementById(id);
+const world = $("world"), svg = $("edges"), blocksEl = $("blocks");
+
+/* ---------- утилиты ---------- */
+function uid() { return Math.random().toString(16).slice(2, 14); }
+function sideFromDir(dx, dy) { return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? "right" : "left") : (dy >= 0 ? "bottom" : "top"); }
+function anchorPoint(b, side) {
+  const x = b.x, y = b.y;
+  if (side === "top") return [x + BW/2, y];
+  if (side === "bottom") return [x + BW/2, y + BH];
+  if (side === "left") return [x, y + BH/2];
+  return [x + BW, y + BH/2];
+}
+function edgePoint(b, tx, ty) {
+  const cx = b.x + BW/2, cy = b.y + BH/2;
+  let dx = tx - cx, dy = ty - cy;
+  if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) dx = 1;
+  if (b.shape === "ellipse") {
+    const rx = BW/2, ry = BH/2, L = Math.hypot(dx/rx, dy/ry) || 1;
+    return [cx + dx/L, cy + dy/L];
+  }
+  const w = BW/2, h = BH/2;
+  const tx1 = Math.abs(dx) > 1e-6 ? w/Math.abs(dx) : 1e9;
+  const ty1 = Math.abs(dy) > 1e-6 ? h/Math.abs(dy) : 1e9;
+  const t = Math.min(tx1, ty1);
+  return [cx + dx*t, cy + dy*t];
+}
+function curvePath(a, b, ss, es) {
+  const dx = b[0]-a[0], dy = b[1]-a[1];
+  const dist = Math.hypot(dx, dy);
+  const bend = Math.min(dist*0.35, 120);
+  const da = SIDE_DIR[ss || sideFromDir(dx, dy)];
+  const db = SIDE_DIR[es || sideFromDir(-dx, -dy)];
+  const c1 = [a[0]+da[0]*bend, a[1]+da[1]*bend];
+  const c2 = [b[0]+db[0]*bend, b[1]+db[1]*bend];
+  return `M ${a[0]} ${a[1]} C ${c1[0]} ${c1[1]}, ${c2[0]} ${c2[1]}, ${b[0]} ${b[1]}`;
+}
+function connPoints(c) {
+  const a = state.blocks.find(x => x.id === c.from);
+  const b = state.blocks.find(x => x.id === c.to);
+  if (!a || !b) return null;
+  const pa = c.start_side ? anchorPoint(a, c.start_side) : edgePoint(a, b.x + BW/2, b.y + BH/2);
+  const pb = c.end_side ? anchorPoint(b, c.end_side) : edgePoint(b, a.x + BW/2, a.y + BH/2);
+  return [pa, pb];
+}
+
+/* ---------- хранение ---------- */
+function loadLocal() {
+  try {
+    const s = localStorage.getItem(LS_KEY);
+    if (s) state = JSON.parse(s);
+  } catch (e) {}
+  if (!state.blocks) state.blocks = [];
+  if (!state.connections) state.connections = [];
+}
+function saveLocal() {
+  state.updated = Date.now();
+  try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+  schedulePush();
+}
+
+/* ---------- отрисовка ---------- */
+function render() {
+  world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+  // блоки
+  blocksEl.innerHTML = "";
+  for (const b of state.blocks) {
+    const el = document.createElement("div");
+    el.className = "block" + (sel === b.id ? " sel" : "");
+    el.dataset.id = b.id;
+    el.style.left = b.x + "px"; el.style.top = b.y + "px";
+    if (b.shape === "ellipse") el.style.borderRadius = "50%";
+    else if (b.shape === "rect") el.style.borderRadius = "0";
+    el.style.background = hexA(b.color, 0.16);
+    el.style.border = "2px solid " + b.color;
+    el.innerHTML = `<div class="t"></div><div class="x"></div>` +
+      ["top","right","bottom","left"].map(s => `<div class="anchor a-${s}" data-side="${s}"></div>`).join("");
+    el.querySelector(".t").textContent = b.title || "Без названия";
+    el.querySelector(".x").textContent = b.text || "";
+    blocksEl.appendChild(el);
+  }
+  // связи
+  svg.innerHTML = "";
+  for (const c of state.connections) {
+    const pts = connPoints(c);
+    if (!pts) continue;
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", curvePath(pts[0], pts[1], c.start_side, c.end_side));
+    p.setAttribute("fill", "none");
+    p.setAttribute("stroke", "#7c869a");
+    p.setAttribute("stroke-width", "2");
+    if (DASH[c.style]) p.setAttribute("stroke-dasharray", DASH[c.style]);
+    p.dataset.id = c.id;
+    p.style.pointerEvents = "stroke";
+    svg.appendChild(p);
+  }
+}
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+
+/* ---------- координаты ---------- */
+function toWorld(clientX, clientY) {
+  const r = $("stage").getBoundingClientRect();
+  return { x: (clientX - r.left - view.x) / view.scale, y: (clientY - r.top - view.y) / view.scale };
+}
+
+/* ---------- взаимодействие ---------- */
+let pointers = new Map();
+let pinchStart = null;
+let tapInfo = null;
+
+$("stage").addEventListener("pointerdown", e => {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinchStart = { d: Math.hypot(a.x-b.x, a.y-b.y), scale: view.scale, cx: (a.x+b.x)/2, cy: (a.y+b.y)/2, vx: view.x, vy: view.y };
+    drag = null;
+    return;
+  }
+  const w = toWorld(e.clientX, e.clientY);
+  const anchorEl = e.target.closest(".anchor");
+  const blockEl = e.target.closest(".block");
+  const edgeEl = e.target.closest("path");
+
+  if (anchorEl && blockEl) {
+    const b = state.blocks.find(x => x.id === blockEl.dataset.id);
+    const side = anchorEl.dataset.side;
+    drag = { type: "conn", from: b.id, start_side: side, pending: anchorPoint(b, side), cur: w };
+    $("stage").setPointerCapture(e.pointerId);
+    return;
+  }
+  if (blockEl) {
+    const b = state.blocks.find(x => x.id === blockEl.dataset.id);
+    sel = b.id;
+    drag = { type: "block", id: b.id, dx: w.x - b.x, dy: w.y - b.y, moved: false };
+    render();
+    $("stage").setPointerCapture(e.pointerId);
+    return;
+  }
+  if (edgeEl) {
+    drag = { type: "tapedge", id: edgeEl.dataset.id, moved: false };
+    $("stage").setPointerCapture(e.pointerId);
+    return;
+  }
+  // пустое место — панорама / снятие выделения
+  sel = null; render();
+  drag = { type: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false };
+  $("stage").setPointerCapture(e.pointerId);
+});
+
+$("stage").addEventListener("pointermove", e => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinchStart && pointers.size >= 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x-b.x, a.y-b.y);
+    const k = Math.max(0.3, Math.min(3, d / pinchStart.d));
+    view.scale = pinchStart.scale * k;
+    render();
+    return;
+  }
+  if (!drag) return;
+  if (drag.type === "pan") {
+    view.x = drag.vx + (e.clientX - drag.sx);
+    view.y = drag.vy + (e.clientY - drag.sy);
+    drag.moved = true;
+    render();
+  } else if (drag.type === "block") {
+    const w = toWorld(e.clientX, e.clientY);
+    const b = state.blocks.find(x => x.id === drag.id);
+    b.x = w.x - drag.dx; b.y = w.y - drag.dy;
+    drag.moved = true;
+    render();
+  } else if (drag.type === "conn") {
+    drag.cur = toWorld(e.clientX, e.clientY);
+    render();
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", curvePath(drag.pending, [drag.cur.x, drag.cur.y], drag.start_side, null));
+    p.setAttribute("fill", "none"); p.setAttribute("stroke", "#4f7cf7"); p.setAttribute("stroke-width", "2");
+    p.setAttribute("stroke-dasharray", "6 5");
+    svg.appendChild(p);
+  } else if (drag.type === "tapedge") {
+    drag.moved = true;
+  }
+});
+
+$("stage").addEventListener("pointerup", e => {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinchStart = null;
+  if (!drag) return;
+  const d = drag; drag = null;
+
+  if (d.type === "block") {
+    if (!d.moved) {
+      const now = Date.now();
+      if (tapInfo && tapInfo.id === d.id && now - tapInfo.t < 350) { tapInfo = null; openBlock(d.id); }
+      else tapInfo = { id: d.id, t: now };
+    } else saveLocal();
+    render();
+  } else if (d.type === "pan") {
+    if (d.moved) { /* панорама уже применена */ }
+  } else if (d.type === "conn") {
+    const w = toWorld(e.clientX, e.clientY);
+    const target = hitBlock(w.x, w.y);
+    if (target && target.id !== d.from) {
+      const es = nearestSide(target, w.x, w.y);
+      if (!state.connections.some(c => (c.from === d.from && c.to === target.id) || (c.from === target.id && c.to === d.from))) {
+        state.connections.push({ id: uid(), from: d.from, to: target.id, style: $("styleSel").value, start_side: d.start_side, end_side: es });
+        saveLocal();
+      }
+    }
+    render();
+  } else if (d.type === "tapedge") {
+    if (!d.moved) { state.connections = state.connections.filter(c => c.id !== d.id); saveLocal(); render(); }
+  }
+});
+
+function hitBlock(x, y) {
+  for (let i = state.blocks.length - 1; i >= 0; i--) {
+    const b = state.blocks[i];
+    if (x >= b.x && x <= b.x + BW && y >= b.y && y <= b.y + BH) return b;
+  }
+  return null;
+}
+function nearestSide(b, x, y) {
+  let best = "top", bd = 1e18;
+  for (const s of ["top","right","bottom","left"]) {
+    const p = anchorPoint(b, s);
+    const d = Math.abs(p[0]-x) + Math.abs(p[1]-y);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+
+/* ---------- редактор блока ---------- */
+let editingId = null;
+function openBlock(id) {
+  const b = id ? state.blocks.find(x => x.id === id) : null;
+  editingId = id || null;
+  $("bsTitle").textContent = id ? "Блок" : "Новый блок";
+  $("bsName").value = b ? (b.title || "") : "";
+  $("bsText").value = b ? (b.text || "") : "";
+  $("bsColor").value = b ? b.color : "#4f7cf7";
+  $("bsShape").value = b ? b.shape : "round";
+  $("blockSheet").classList.add("open");
+}
+$("bsCancel").onclick = () => $("blockSheet").classList.remove("open");
+$("bsOk").onclick = () => {
+  const data = { title: $("bsName").value.trim(), text: $("bsText").value.trim(), color: $("bsColor").value, shape: $("bsShape").value };
+  if (editingId) {
+    Object.assign(state.blocks.find(x => x.id === editingId), data);
+  } else {
+    const c = toWorld(innerWidth/2, innerHeight/2);
+    state.blocks.push(Object.assign({ id: uid(), x: Math.round(c.x - BW/2), y: Math.round(c.y - BH/2) }, data));
+  }
+  saveLocal(); render();
+  $("blockSheet").classList.remove("open");
+};
+$("btnAdd").onclick = () => openBlock(null);
+$("btnDel").onclick = () => {
+  if (!sel) { toast("Выберите блок"); return; }
+  state.connections = state.connections.filter(c => c.from !== sel && c.to !== sel);
+  state.blocks = state.blocks.filter(b => b.id !== sel);
+  sel = null; saveLocal(); render();
+};
+$("btnIn").onclick = () => { view.scale = Math.min(3, view.scale * 1.2); render(); };
+$("btnOut").onclick = () => { view.scale = Math.max(0.3, view.scale / 1.2); render(); };
+
+/* ---------- синхронизация ---------- */
+function ghHeaders() {
+  const pat = localStorage.getItem(LS_PAT) || "";
+  return { "Authorization": "token " + pat, "Accept": "application/vnd.github+json", "Content-Type": "application/json" };
+}
+async function gistGet() {
+  const id = localStorage.getItem(LS_GIST);
+  const r = await fetch("https://api.github.com/gists/" + id, { headers: ghHeaders() });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const j = await r.json();
+  const f = j.files && j.files["tasks.json"];
+  return f ? JSON.parse(f.content) : { blocks: [], connections: [], updated: 0 };
+}
+async function gistPush() {
+  const id = localStorage.getItem(LS_GIST);
+  const body = { files: { "tasks.json": { content: JSON.stringify(state, null, 1) } } };
+  const r = await fetch("https://api.github.com/gists/" + id, { method: "PATCH", headers: ghHeaders(), body: JSON.stringify(body) });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+}
+async function gistCreate() {
+  const body = { description: "D-Launcher tasks", public: false, files: { "tasks.json": { content: JSON.stringify(state, null, 1) } } };
+  const r = await fetch("https://api.github.com/gists", { method: "POST", headers: ghHeaders(), body: JSON.stringify(body) });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const j = await r.json();
+  localStorage.setItem(LS_GIST, j.id);
+  return j.id;
+}
+async function syncNow() {
+  try {
+    const remote = await gistGet();
+    if ((remote.updated || 0) > (state.updated || 0)) {
+      state = remote;
+      try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+      render(); toast("Скачано с сервера");
+    } else {
+      saveLocal(); await gistPush(); toast("Отправлено на сервер");
+    }
+  } catch (e) { toast("Ошибка синхронизации: " + e.message); }
+}
+
+/* автосинхронизация */
+let pushTimer = null;
+function schedulePush() {
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(pushNow, 1500);
+}
+async function pushNow() {
+  const pat = localStorage.getItem(LS_PAT), gist = localStorage.getItem(LS_GIST);
+  if (!pat || !gist) return;
+  try { await gistPush(); } catch (e) { /* тихо */ }
+}
+async function pullNow(silent) {
+  const pat = localStorage.getItem(LS_PAT), gist = localStorage.getItem(LS_GIST);
+  if (!pat || !gist) { if (!silent) toast("Настройте синхронизацию (⚙)"); return; }
+  try {
+    const remote = await gistGet();
+    if ((remote.updated || 0) > (state.updated || 0)) {
+      state = remote;
+      try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+      render();
+      if (!silent) toast("Скачано с сервера");
+    } else if (!silent) {
+      toast("Изменений нет");
+    }
+  } catch (e) { if (!silent) toast("Ошибка: " + e.message); }
+}
+$("btnSync").onclick = syncNow;
+$("btnSet").onclick = () => {
+  $("setPat").value = localStorage.getItem(LS_PAT) || "";
+  $("setGist").value = localStorage.getItem(LS_GIST) || "";
+  $("setSheet").classList.add("open");
+};
+$("setClose").onclick = () => {
+  localStorage.setItem(LS_PAT, $("setPat").value.trim());
+  localStorage.setItem(LS_GIST, $("setGist").value.trim());
+  $("setSheet").classList.remove("open");
+};
+$("setCreate").onclick = async () => {
+  localStorage.setItem(LS_PAT, $("setPat").value.trim());
+  try { const id = await gistCreate(); $("setGist").value = id; toast("Хранилище создано"); }
+  catch (e) { toast("Ошибка: " + e.message); }
+};
+$("setPull").onclick = async () => {
+  localStorage.setItem(LS_PAT, $("setPat").value.trim());
+  localStorage.setItem(LS_GIST, $("setGist").value.trim());
+  try { const r = await gistGet(); state = r; saveLocal(); render(); toast("Скачано"); }
+  catch (e) { toast("Ошибка: " + e.message); }
+};
+$("setPush").onclick = async () => {
+  localStorage.setItem(LS_PAT, $("setPat").value.trim());
+  localStorage.setItem(LS_GIST, $("setGist").value.trim());
+  try { saveLocal(); await gistPush(); toast("Загружено"); }
+  catch (e) { toast("Ошибка: " + e.message); }
+};
+
+/* ---------- прочее ---------- */
+let toastT = null;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+loadLocal();
+// центрируем вид
+view.x = innerWidth/2 - 600; view.y = innerHeight/2 - 400;
+render();
+setTimeout(() => pullNow(true), 600);
+if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+</script>
+</body>
+</html>
