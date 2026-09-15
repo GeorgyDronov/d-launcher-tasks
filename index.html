@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#141519">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -10,16 +10,25 @@
 <link rel="manifest" href="manifest.webmanifest">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #141519; color: #e8e9ee;
+  html, body { margin: 0; height: 100%; height: 100dvh; overflow: hidden; background: #141519; color: #e8e9ee;
     font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif; }
-  #bar { position: fixed; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center;
-    gap: 8px; padding: 0 10px; background: #1f2129; border-bottom: 1px solid #2c2f3a; z-index: 20; }
-  #bar .sp { flex: 1; }
+  body { display: flex; flex-direction: column; }
+  #bar { flex: 0 0 auto; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px;
+    padding: 6px 8px; padding-top: calc(6px + env(safe-area-inset-top));
+    padding-left: calc(8px + env(safe-area-inset-left)); padding-right: calc(8px + env(safe-area-inset-right));
+    background: #1f2129; border-bottom: 1px solid #2c2f3a; z-index: 20; overflow-x: auto; }
+  #bar #styleSel { flex: 1 1 auto; min-width: 60px; }
+  #bar .spacer { flex: 1 1 auto; min-width: 4px; }
   button { background: #262934; color: #e8e9ee; border: 1px solid #3a3f4d; border-radius: 8px;
-    padding: 8px 12px; font-size: 14px; }
+    padding: 8px 12px; font-size: 14px; white-space: nowrap; }
   button:active { background: #3a3f4d; }
-  select { background: #262934; color: #e8e9ee; border: 1px solid #3a3f4d; border-radius: 8px; padding: 8px; font-size: 14px; }
-  #stage { position: fixed; inset: 52px 0 0 0; overflow: hidden; touch-action: none; }
+  select { background: #262934; color: #e8e9ee; border: 1px solid #3a3f4d; border-radius: 8px; padding: 8px; font-size: 14px; max-width: 100%; }
+  #zoomLbl { min-width: 42px; text-align: center; font-size: 13px; color: #9aa0ae; font-variant-numeric: tabular-nums; }
+  #zoomBar { position: fixed; right: calc(10px + env(safe-area-inset-right));
+    bottom: calc(12px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 4px;
+    background: #1f2129; border: 1px solid #2c2f3a; border-radius: 12px; padding: 5px 6px;
+    z-index: 25; box-shadow: 0 2px 10px rgba(0,0,0,.45); }
+  #stage { flex: 1 1 auto; position: relative; overflow: hidden; touch-action: none; }
   #world { position: absolute; left: 0; top: 0; width: 12000px; height: 12000px; transform-origin: 0 0;
     background-image: radial-gradient(#24262d 1px, transparent 1px); background-size: 24px 24px; }
   #edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
@@ -36,10 +45,12 @@
   .a-bottom { left: calc(50% - 7px); bottom: -7px; }
   .a-left { top: calc(50% - 7px); left: -7px; }
   .a-right { top: calc(50% - 7px); right: -7px; }
-  .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center;
-    justify-content: center; z-index: 30; }
+  .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; z-index: 30;
+    overflow: auto; padding: 12px; padding-top: calc(12px + env(safe-area-inset-top));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
   .sheet.open { display: flex; }
-  .card { width: min(92vw, 420px); background: #1f2129; border: 1px solid #2c2f3a; border-radius: 14px; padding: 16px; }
+  .card { margin: auto; width: min(92vw, 420px);
+    background: #1f2129; border: 1px solid #2c2f3a; border-radius: 14px; padding: 16px; }
   .card h3 { margin: 0 0 12px; font-size: 17px; }
   .card label { display: block; font-size: 13px; color: #9aa0ae; margin: 10px 0 4px; }
   .card input, .card textarea { width: 100%; background: #262934; color: #e8e9ee; border: 1px solid #3a3f4d;
@@ -50,10 +61,17 @@
   .card .hint { font-size: 12px; color: #7f8799; margin-top: 6px; }
   .primary { background: #2d8cff !important; border-color: #2d8cff !important; color: #fff !important; }
   .danger { background: #b3261e !important; border-color: #b3261e !important; color: #fff !important; }
-  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #262934;
+  #toast { position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #262934;
     border: 1px solid #3a3f4d; padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0;
     transition: opacity .2s; z-index: 40; pointer-events: none; }
   #toast.show { opacity: 1; }
+  @media (max-width: 520px) {
+    button { padding: 6px 9px; font-size: 13px; }
+    select { padding: 6px; font-size: 13px; }
+    #bar { gap: 4px; padding: 4px 6px; padding-top: calc(4px + env(safe-area-inset-top));
+      padding-left: calc(6px + env(safe-area-inset-left)); padding-right: calc(6px + env(safe-area-inset-right)); }
+    #zoomBar button { padding: 6px 9px; }
+  }
 </style>
 </head>
 <body>
@@ -66,9 +84,7 @@
     <option value="dashdot">Штрих-пунктир</option>
   </select>
   <button id="btnDel">Удалить</button>
-  <span class="sp"></span>
-  <button id="btnOut">−</button>
-  <button id="btnIn">＋</button>
+  <div class="spacer"></div>
   <button id="btnSync" title="Синхронизация">⟳</button>
   <button id="btnSet" title="Настройки">⚙</button>
 </header>
@@ -78,6 +94,14 @@
     <svg id="edges" width="12000" height="12000"></svg>
     <div id="blocks"></div>
   </div>
+</div>
+
+<div id="zoomBar">
+  <button id="btnOut" title="Уменьшить">−</button>
+  <span id="zoomLbl">100%</span>
+  <button id="btnIn" title="Увеличить">＋</button>
+  <button id="btnReset" title="Сбросить масштаб (100%)">⤢</button>
+  <button id="btnFit" title="Показать всё">⛶</button>
 </div>
 
 <!-- редактор блока -->
@@ -212,6 +236,7 @@ function saveLocal() {
 /* ---------- отрисовка ---------- */
 function render() {
   world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+  $("zoomLbl").textContent = Math.round(view.scale * 100) + "%";
   // блоки
   blocksEl.innerHTML = "";
   for (const b of state.blocks) {
@@ -248,6 +273,56 @@ function render() {
 function hexA(hex, a) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+
+/* ---------- зум ---------- */
+function zoomBy(f) {
+  const sr = $("stage").getBoundingClientRect();
+  const cx = (sr.width / 2 - view.x) / view.scale;
+  const cy = (sr.height / 2 - view.y) / view.scale;
+  view.scale = Math.max(0.25, Math.min(4, view.scale * f));
+  view.x = sr.width / 2 - cx * view.scale;
+  view.y = sr.height / 2 - cy * view.scale;
+  render();
+}
+function resetZoom() {
+  const sr = $("stage").getBoundingClientRect();
+  const cx = (sr.width / 2 - view.x) / view.scale;
+  const cy = (sr.height / 2 - view.y) / view.scale;
+  view.scale = 1;
+  view.x = sr.width / 2 - cx;
+  view.y = sr.height / 2 - cy;
+  render();
+}
+function fitContent() {
+  if (!state.blocks.length) { home(); return; }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const b of state.blocks) {
+    minX = Math.min(minX, b.x); minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + BW); maxY = Math.max(maxY, b.y + BH);
+  }
+  const pad = 80;
+  minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+  const w = maxX - minX, h = maxY - minY;
+  const sr = $("stage").getBoundingClientRect();
+  view.scale = Math.max(0.25, Math.min(1, Math.min(sr.width / w, sr.height / h)));
+  view.x = sr.width / 2 - (minX + maxX) / 2 * view.scale;
+  view.y = sr.height / 2 - (minY + maxY) / 2 * view.scale;
+  render();
+}
+// стартовый вид как на ПК: масштаб 100%, центр на первом блоке (или начало координат)
+function home() {
+  const sr = $("stage").getBoundingClientRect();
+  view.scale = 1;
+  if (state.blocks.length) {
+    const b = state.blocks[0];
+    view.x = sr.width / 2 - (b.x + BW / 2);
+    view.y = sr.height / 2 - (b.y + BH / 2);
+  } else {
+    view.x = sr.width / 2;
+    view.y = sr.height / 2;
+  }
+  render();
 }
 
 /* ---------- координаты ---------- */
@@ -305,8 +380,14 @@ $("stage").addEventListener("pointermove", e => {
   if (pinchStart && pointers.size >= 2) {
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(a.x-b.x, a.y-b.y);
-    const k = Math.max(0.3, Math.min(3, d / pinchStart.d));
-    view.scale = pinchStart.scale * k;
+    const k = Math.max(0.25, Math.min(4, d / pinchStart.d));
+    const ns = pinchStart.scale * k;
+    const r = $("stage").getBoundingClientRect();
+    const wx = (pinchStart.cx - r.left - pinchStart.vx) / pinchStart.scale;
+    const wy = (pinchStart.cy - r.top - pinchStart.vy) / pinchStart.scale;
+    view.scale = ns;
+    view.x = pinchStart.cx - r.left - wx * ns;
+    view.y = pinchStart.cy - r.top - wy * ns;
     render();
     return;
   }
@@ -401,7 +482,8 @@ $("bsOk").onclick = () => {
   if (editingId) {
     Object.assign(state.blocks.find(x => x.id === editingId), data);
   } else {
-    const c = toWorld(innerWidth/2, innerHeight/2);
+    const sr0 = $("stage").getBoundingClientRect();
+    const c = toWorld(sr0.left + sr0.width / 2, sr0.top + sr0.height / 2);
     state.blocks.push(Object.assign({ id: uid(), x: Math.round(c.x - BW/2), y: Math.round(c.y - BH/2) }, data));
   }
   saveLocal(); render();
@@ -414,8 +496,10 @@ $("btnDel").onclick = () => {
   state.blocks = state.blocks.filter(b => b.id !== sel);
   sel = null; saveLocal(); render();
 };
-$("btnIn").onclick = () => { view.scale = Math.min(3, view.scale * 1.2); render(); };
-$("btnOut").onclick = () => { view.scale = Math.max(0.3, view.scale / 1.2); render(); };
+$("btnIn").onclick = () => zoomBy(1.2);
+$("btnOut").onclick = () => zoomBy(1 / 1.2);
+$("btnReset").onclick = resetZoom;
+$("btnFit").onclick = fitContent;
 
 /* ---------- синхронизация ---------- */
 function ghHeaders() {
@@ -474,9 +558,11 @@ async function pullNow(silent) {
   try {
     const remote = await gistGet();
     if ((remote.updated || 0) > (state.updated || 0)) {
+      const wasEmpty = (state.blocks || []).length === 0;
       state = remote;
       try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
       render();
+      if (wasEmpty && (state.blocks || []).length) home();
       if (!silent) toast("Скачано с сервера");
     } else if (!silent) {
       toast("Изменений нет");
@@ -502,7 +588,7 @@ $("setCreate").onclick = async () => {
 $("setPull").onclick = async () => {
   localStorage.setItem(LS_PAT, $("setPat").value.trim());
   localStorage.setItem(LS_GIST, $("setGist").value.trim());
-  try { const r = await gistGet(); state = r; saveLocal(); render(); toast("Скачано"); }
+  try { const r = await gistGet(); state = r; saveLocal(); render(); if ((state.blocks || []).length) home(); toast("Скачано"); }
   catch (e) { toast("Ошибка: " + e.message); }
 };
 $("setPush").onclick = async () => {
@@ -520,11 +606,28 @@ function toast(msg) {
 }
 
 loadLocal();
-// центрируем вид
-view.x = innerWidth/2 - 600; view.y = innerHeight/2 - 400;
-render();
+// стартовый вид как на ПК: масштаб 100%, центр на первом блоке (или начало координат)
+home();
 setTimeout(() => pullNow(true), 600);
 if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+
+// при открытии клавиатуры подводим активное поле в зону видимости
+document.querySelectorAll('.card input, .card textarea, .card select').forEach(el => {
+  el.addEventListener('focus', () => {
+    requestAnimationFrame(() => {
+      try { el.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (e) {}
+    });
+  });
+});
+// при изменении размера окна (клавиатура/поворот) держим активное поле на виду
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    const a = document.activeElement;
+    if (a && a.closest && a.closest('.sheet.open')) {
+      try { a.scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (e) {}
+    }
+  });
+}
 </script>
 </body>
 </html>
